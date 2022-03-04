@@ -5,4 +5,4 @@ Pre-processing Results
 
 Stanza
 
-![image](https://drive.google.com/file/d/1n9rAL3uviMIhBqUI_G5SrvVr5G-mLBr-)
+![image](https://drive.google.com/uc?export=view&id=<FILE_ID>)
