@@ -5,4 +5,9 @@ Pre-processing Results
 
 Stanza
 
-![image](https://drive.google.com/uc?export=view&id=<FILE_ID>)
+
+
+Spacy
+
+![image](results/spacy_CPU.jpg)
+![image](results/spacy_GPU.jpg)
