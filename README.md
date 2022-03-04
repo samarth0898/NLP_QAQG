@@ -5,9 +5,11 @@ Pre-processing Results
 
 Stanza
 
+![image](results/stanza.jpg)
 
 
 Spacy
 
-![image](results/spacy_CPU.jpg)
+![image](results/spacy_cpu.jpg)
+
 ![image](results/spacy_GPU.jpg)
