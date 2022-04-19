@@ -1,0 +1,207 @@
+#!/usr/bin/python3 -W ignore::DeprecationWarning
+# -*- coding:utf8 -*-
+
+import sys
+import spacy
+import codecs
+import re
+from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
+
+def get_preprocessing_info(doc,sentence):
+    ner = []
+    pos = []
+    for ent in doc.ents:
+        ner.append((ent.text, ent.start_char, ent.end_char, ent.label_))
+
+    for token in doc:
+        pos.append((token.text, token.lemma_, token.tag_, token.dep_,
+                token.shape_, token.is_alpha, token.is_stop))
+    return ner, pos
+
+
+def sentence_reading(file_name):
+    with open(file_name, 'r') as f:
+      sentences = f.read().strip("\n")
+    sentences = sentences.replace('. ', '.\n')
+
+    origin_list = sentences.split('\n')
+    processed_list = []
+    for sent in origin_list:
+        sent = sent.strip("\n")
+        if sent != "":
+            processed_list.append(sent)
+    return processed_list
+
+def filter_sent(pos):
+    deps = [p[3] for p in pos]
+    if not "ROOT" in deps:
+        return False
+
+    idx = deps.index('ROOT')
+    if not pos[idx][2].startswith('VB'):
+        return False
+
+    return True
+
+def find_tense(pos, doc):
+    root = list(doc.sents)[0].root 
+    for token in root.subtree:
+        if token.dep_ == 'aux':
+            return (token.text,root.text)
+
+    if root.lemma_ == 'be':
+        return ('', '')
+  
+    if root.tag_ == 'VB' or root.tag_ == 'VBP':
+        return ('do', root.lemma_)
+    elif root.tag_ == 'VBD':
+        return ('did', root.lemma_)
+    elif root.tag_ == 'VBZ':
+        return ('does', root.lemma_)
+  
+    return ('', '')
+
+def ask_time_place(tag, doc, ents, sent, sub_idx, char_idx, ner, aux, root):
+    if tag == "DATE":
+        q = 'When '
+    elif tag == "TIME":
+        q = "What time "
+    elif tag == 'LOC':
+        q = 'Where '  
+  
+    tokens = [t.text for t in doc]
+  
+    if tag in ents:
+        date_idx = ents.index(tag)
+        if char_idx <= ner[date_idx][1]:
+            token_idx = -1
+            for i, tok in enumerate(tokens):
+                if ner[date_idx][0].startswith(tok):
+                    token_idx = i
+            head = doc[token_idx].head
+            date_subtree = ' '.join(map(lambda x:x.text, list(head.subtree)))
+            sent = sent.replace(date_subtree, '').strip(' ,.') + '.'
+        suffix = sent[root.idx + len(root.text) + 1:].strip(' .')
+        q += (aux + ' ' + ' '.join(map(lambda x:x.text, list(doc[sub_idx].subtree))) + ' ' + verb  + ' ' + suffix + '?')
+        return q
+  
+    return None
+
+def t5_qg(sentence, tokenizer, model):
+    query = 'content: ' + sentence
+    features = tokenizer([query], return_tensors='pt')
+
+    output = model.generate(input_ids=features['input_ids'], 
+               attention_mask=features['attention_mask'],
+               max_length=64)
+    question = tokenizer.decode(output[0])
+    question = question.replace('<pad> question: ', '')
+    question = question.replace('</s>', '')
+    return question
+
+def score(question, nlp):
+    score = 50
+    len_q = len(question.split(' '))
+    if len_q > 22 or len_q < 9:
+        return -100
+
+    if not (question.startswith('Wh') or question.startswith('How')):
+        return -100
+
+    if question.startswith('Why'):
+        return -100
+
+    if question.find('<unk>') > 0:
+        return -100
+
+    if question.count('(') != question.count(')'):
+        return -100
+
+    if not question.isascii():
+        return -100
+
+    q = nlp(question)
+    pos = []
+    for token in q:
+        pos.append(token.tag_)
+
+    score += (pos.count('NNP') / len(q))
+
+    return score
+
+if __name__ == "__main__":
+    input_file = sys.argv[1]
+    N = int(sys.argv[2])
+    
+    tokenizer = AutoTokenizer.from_pretrained("mrm8488/t5-base-finetuned-question-generation-ap")
+    model = AutoModelForSeq2SeqLM.from_pretrained("mrm8488/t5-base-finetuned-question-generation-ap")
+    nlp = spacy.load("en_core_web_trf")
+
+    sent_list = sentence_reading(input_file)
+    questions = []
+    for sent in sent_list:
+        doc = nlp(sent)
+        ner, pos = get_preprocessing_info(doc, sent)
+
+        root = list(doc.sents)[0].root
+        q_list = []
+        if not filter_sent(pos):
+            continue
+
+        deps = [p[3] for p in pos]
+        if not 'nsubj' in deps:
+            continue
+        sub_idx = deps.index('nsubj')
+        char_idx = doc[sub_idx].idx
+
+        for ent in ner:
+            if char_idx >= ent[1] and char_idx <= ent[2]:
+                if ent[3] == 'PERSON':
+                    q = 'Who '
+                else:
+                    q = 'What '
+
+                q += (sent[ent[2] + 1:-1] + '?')
+                q_list.append(q)
+            else:
+                continue 
+
+        ents = [n[3] for n in ner]
+        aux, verb = find_tense(pos, doc)
+        if not aux:
+            continue
+
+        if ents.count('DATE') + ent.count('TIME') > 2:
+            continue
+        elif ents.count('LOC') > 2:
+            continue
+
+        q_time = ask_time_place('TIME', doc, ents, sent, sub_idx, char_idx, ner, aux, root)
+        q_date = ask_time_place('DATE', doc, ents, sent, sub_idx, char_idx, ner, aux, root)
+        q_where = ask_time_place('LOC', doc, ents, sent, sub_idx, char_idx, ner, aux, root)
+        if q_time:
+            q_list.append(q_time)
+
+        if q_date:
+            q_list.append(q_date)
+
+        if q_where:
+            q_list.append(q_where)
+
+        if len(q_list) <= 1:
+            q_list.append(t5_qg(sent, tokenizer, model))
+        questions.extend(q_list)
+
+    q_score = []
+    for q in questions:
+        q_score.append((q, score(q, nlp)))
+
+    q_score = sorted(q_score, key = lambda x:x[1], reverse = True)
+    for count, i in enumerate(q_score):
+        if count >= N:
+            break
+        q = q_score[0]
+        q = q.replace(' - ', '-')
+        q = q.replace(' ?', '?')
+        q = q.replace('  ', ' ')
+        print(q)
