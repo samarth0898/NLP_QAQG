@@ -171,7 +171,7 @@ if __name__ == "__main__":
         if not aux:
             continue
 
-        if ents.count('DATE') + ent.count('TIME') > 2:
+        if ents.count('DATE') + ents.count('TIME') > 2:
             continue
         elif ents.count('LOC') > 2:
             continue
@@ -200,7 +200,7 @@ if __name__ == "__main__":
     for count, i in enumerate(q_score):
         if count >= N:
             break
-        q = q_score[0]
+        q = i[0]
         q = q.replace(' - ', '-')
         q = q.replace(' ?', '?')
         q = q.replace('  ', ' ')
