@@ -132,17 +132,31 @@ class AnswerExtractor:
         model = AutoModelForQuestionAnswering.from_pretrained(model)
         self.nlp = QuestionAnsweringPipeline(model=model, tokenizer=tokenizer)
 
-    def extract(self, question, passages):
-        answers = []
+    # def extract(self, question, passages):
+    #     answers = []
+    #     for passage in passages:
+    #         try:
+    #             answer = self.nlp(question=question, context=passage)
+    #             answer['text'] = passage
+    #             answers.append(answer)
+    #         except KeyError:
+    #             pass
+    #     answers.sort(key=operator.itemgetter('score'), reverse=True)
+    #     return answers
+
+    def extract(self, question, passages): #CHANGED
+        all_scores = []
+        all_as = []
         for passage in passages:
             try:
-                answer = self.nlp(question=question, context=passage)
-                answer['text'] = passage
-                answers.append(answer)
+                answers = self.nlp(question=question, context=passage, top_k=3) 
+                for answer in answers: 
+                  all_scores.append(answer['score'])
+                  all_as.append(answer['answer'])
             except KeyError:
                 pass
-        answers.sort(key=operator.itemgetter('score'), reverse=True)
-        return answers
+        # answers.sort(key=operator.itemgetter('score'), reverse=True)
+        return (all_scores, all_as)
 
 
 
