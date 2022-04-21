@@ -1,11 +1,14 @@
 from transformers import AutoModelForQuestionAnswering, AutoTokenizer, QuestionAnsweringPipeline
+
 import operator
 from gensim.summarization.bm25 import BM25
-from transformers import AutoModelForQuestionAnswering, AutoTokenizer, QuestionAnsweringPipeline
 import wikipedia
 import requests
 import concurrent.futures
 import re
+
+import logging
+logging.disable(logging.INFO) # disable INFO and DEBUG logging everywhere
 
 
 #Pre-Processing 

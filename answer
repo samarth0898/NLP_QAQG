@@ -1,6 +1,9 @@
 #!/usr/bin/python3 -W ignore::DeprecationWarning
 # -*- coding:utf8 -*-
+import sys, os
 
+sys.stdout = open(os.devnull, 'w')
+sys.stderr = open(os.devnull, 'w')
 
 from transformers import AutoModelForQuestionAnswering, AutoTokenizer
 import numpy as np
@@ -12,6 +15,9 @@ from modules import QueryProcessor,PassageRetrieval,AnswerExtractor,DocumentRetr
 warnings.filterwarnings("ignore", category=np.VisibleDeprecationWarning) 
 import argparse
 from pathlib import Path
+
+import logging
+logging.disable(logging.INFO) # disable INFO and DEBUG logging everywhere
 
 def main(root_dataset,question_txt):
     #Language models
@@ -56,7 +62,9 @@ def main(root_dataset,question_txt):
         for i in answers:
             all_answers.append(i)
         all_answers.sort(key=operator.itemgetter('score'), reverse=True)
-        print("A{} {}".format(counter,all_answers[0]['answer']))
+        sys.stdout = sys.__stdout__
+        print(all_answers[0]['answer'])
+        sys.stdout = open(os.devnull, 'w')
         counter+=1
 
 def argparser():
